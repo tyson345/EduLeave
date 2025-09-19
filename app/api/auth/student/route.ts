@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getStudentByUSN } from '../../../../lib/db'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+
 // Handle POST request for student authentication
 export async function POST(request: Request) {
   try {

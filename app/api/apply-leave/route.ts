@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { submitLeaveApplication, getStudentLeaveBalance } from '../../../lib/db'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+
 // Handle POST request for leave application
 export async function POST(request: Request) {
   try {

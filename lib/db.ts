@@ -15,16 +15,18 @@ const dbConfig = {
 // Create a connection pool
 const pool = mysql.createPool(dbConfig)
 
-// Test the connection
-pool.getConnection()
-  .then(connection => {
-    console.log('Database connected successfully')
-    connection.release()
-  })
-  .catch(err => {
-    console.error('Error connecting to database:', err)
-    console.error('Please check your database credentials in the .env file')
-  })
+// Test the connection only in development
+if (process.env.NODE_ENV !== 'production') {
+  pool.getConnection()
+    .then(connection => {
+      console.log('Database connected successfully')
+      connection.release()
+    })
+    .catch(err => {
+      console.error('Error connecting to database:', err)
+      console.error('Please check your database credentials in the .env file')
+    })
+}
 
 // Function to get all students
 export async function getStudents() {

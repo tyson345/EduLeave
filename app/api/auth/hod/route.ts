@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import mysql from 'mysql2/promise'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+
 // Database configuration
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
