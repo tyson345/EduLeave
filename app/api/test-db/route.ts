@@ -6,41 +6,23 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    // Try using POSTGRES_URL first, then fall back to individual config
+    // Force using POSTGRES_URL connection string
     const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL
     
-    let dbConfig: any
-    
-    if (connectionString) {
-      dbConfig = {
-        connectionString: connectionString,
-        ssl: { 
-          rejectUnauthorized: false,
-          checkServerIdentity: () => undefined
-        }
-      }
-      console.log('Using connection string:', connectionString.substring(0, 50) + '...')
-    } else {
-      // Fallback to individual parameters
-      dbConfig = {
-        host: process.env.DB_HOST || 'localhost',
-        port: parseInt(process.env.DB_PORT || '5432'),
-        user: process.env.DB_USER || 'postgres',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'postgres',
-        ssl: { 
-          rejectUnauthorized: false,
-          checkServerIdentity: () => undefined
-        }
-      }
-      console.log('Using individual config:', {
-        host: dbConfig.host,
-        port: dbConfig.port,
-        user: dbConfig.user,
-        database: dbConfig.database,
-        password: dbConfig.password ? '***' : 'empty'
-      })
+    if (!connectionString) {
+      throw new Error('No database connection string found. Please set POSTGRES_URL environment variable.')
     }
+    
+    const dbConfig = {
+      connectionString: connectionString,
+      ssl: { 
+        rejectUnauthorized: false,
+        checkServerIdentity: () => undefined
+      }
+    }
+    
+    console.log('Using connection string:', connectionString.substring(0, 50) + '...')
+    console.log('Full connection string available:', !!connectionString)
 
     // Test database connection
     const pool = new Pool(dbConfig)
