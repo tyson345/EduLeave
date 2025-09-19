@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import db from '../../../../lib/db'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: NextRequest) {
   try {
     const { userType, currentPassword, newPassword } = await request.json()
@@ -83,25 +85,25 @@ export async function POST(request: NextRequest) {
       }
 
       // Update password
-      await db.execute(
-        'UPDATE students SET password = ? WHERE usn = ?',
+      await db.query(
+        'UPDATE students SET password = $1 WHERE usn = $2',
         [newPassword, userIdentifier]
       )
     } else if (userType === 'hod') {
       // Verify current password for HOD
-      const [rows] = await db.execute(
-        'SELECT id, eid, password FROM hod WHERE eid = ?',
+      const hodResult = await db.query(
+        'SELECT id, eid, password FROM hod WHERE eid = $1',
         [userIdentifier]
       )
 
-      if ((rows as any[]).length === 0) {
+      if (hodResult.rows.length === 0) {
         return NextResponse.json({
           success: false,
           error: 'HOD not found'
         }, { status: 404 })
       }
 
-      const hod = (rows as any[])[0]
+      const hod = hodResult.rows[0]
       
       // In a real application, you would hash and compare passwords
       // For now, we'll do a simple comparison (you should use bcrypt in production)
@@ -113,8 +115,8 @@ export async function POST(request: NextRequest) {
       }
 
       // Update password
-      await db.execute(
-        'UPDATE hod SET password = ? WHERE eid = ?',
+      await db.query(
+        'UPDATE hod SET password = $1 WHERE eid = $2',
         [newPassword, userIdentifier]
       )
     }
