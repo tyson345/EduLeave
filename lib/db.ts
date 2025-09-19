@@ -1,26 +1,35 @@
-import mysql from 'mysql2/promise'
+import { Pool } from 'pg'
 
-// Database configuration
-const dbConfig = {
+// Database configuration for PostgreSQL
+const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL
+
+const dbConfig = connectionString ? {
+  connectionString: connectionString,
+  ssl: { 
+    rejectUnauthorized: false,
+    checkServerIdentity: () => undefined
+  }
+} : {
   host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '3306'),
-  user: process.env.DB_USER || 'root',
+  port: parseInt(process.env.DB_PORT || '5432'),
+  user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'leave_application_system',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
+  database: process.env.DB_NAME || 'postgres',
+  ssl: { 
+    rejectUnauthorized: false,
+    checkServerIdentity: () => undefined
+  }
 }
 
 // Create a connection pool
-const pool = mysql.createPool(dbConfig)
+const pool = new Pool(dbConfig)
 
 // Test the connection only in development
 if (process.env.NODE_ENV !== 'production') {
-  pool.getConnection()
-    .then(connection => {
+  pool.connect()
+    .then(client => {
       console.log('Database connected successfully')
-      connection.release()
+      client.release()
     })
     .catch(err => {
       console.error('Error connecting to database:', err)
@@ -31,8 +40,8 @@ if (process.env.NODE_ENV !== 'production') {
 // Function to get all students
 export async function getStudents() {
   try {
-    const [rows] = await pool.execute('SELECT * FROM students')
-    return rows as mysql.RowDataPacket[]
+    const result = await pool.query('SELECT * FROM students')
+    return result.rows
   } catch (error) {
     console.error('Error fetching students:', error)
     throw error
@@ -42,12 +51,11 @@ export async function getStudents() {
 // Function to get student by USN
 export async function getStudentByUSN(usn: string) {
   try {
-    const [rows] = await pool.execute(
-      'SELECT * FROM students WHERE usn = ?',
+    const result = await pool.query(
+      'SELECT * FROM students WHERE usn = $1',
       [usn]
     )
-    const result = rows as mysql.RowDataPacket[]
-    return result[0] || null
+    return result.rows[0] || null
   } catch (error) {
     console.error('Error fetching student by USN:', error)
     throw error
