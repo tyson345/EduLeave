@@ -55,23 +55,23 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    let result
+    let userResult
 
     if (userType === 'student') {
       // Verify current password for student
-      const [rows] = await db.execute(
-        'SELECT id, usn, password FROM students WHERE usn = ?',
+      const result = await db.query(
+        'SELECT id, usn, password FROM students WHERE usn = $1',
         [userIdentifier]
       )
 
-      if ((rows as any[]).length === 0) {
+      if (result.rows.length === 0) {
         return NextResponse.json({
           success: false,
           error: 'Student not found'
         }, { status: 404 })
       }
 
-      const student = (rows as any[])[0]
+      const student = result.rows[0]
       
       // In a real application, you would hash and compare passwords
       // For now, we'll do a simple comparison (you should use bcrypt in production)

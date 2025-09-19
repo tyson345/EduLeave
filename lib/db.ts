@@ -65,12 +65,11 @@ export async function getStudentByUSN(usn: string) {
 // Function to get student leave balance
 export async function getStudentLeaveBalance(studentId: number, semester: number) {
   try {
-    const [rows] = await pool.execute(
-      'SELECT * FROM leave_balances WHERE student_id = ? AND semester = ?',
+    const result = await pool.query(
+      'SELECT * FROM leave_balances WHERE student_id = $1 AND semester = $2',
       [studentId, semester]
     )
-    const result = rows as mysql.RowDataPacket[]
-    return result[0] || null
+    return result.rows[0] || null
   } catch (error) {
     console.error('Error fetching student leave balance:', error)
     throw error
@@ -80,13 +79,13 @@ export async function getStudentLeaveBalance(studentId: number, semester: number
 // Function to get student leave applications
 export async function getStudentLeaveApplications(studentId: number) {
   try {
-    const [rows] = await pool.execute(
+    const result = await pool.query(
       `SELECT * FROM leave_applications 
-       WHERE student_id = ? 
+       WHERE student_id = $1 
        ORDER BY applied_at DESC`,
       [studentId]
     )
-    return rows as mysql.RowDataPacket[]
+    return result.rows
   } catch (error) {
     console.error('Error fetching student leave applications:', error)
     throw error
@@ -96,14 +95,14 @@ export async function getStudentLeaveApplications(studentId: number) {
 // Function to get pending leave applications for HOD
 export async function getPendingLeaveApplications() {
   try {
-    const [rows] = await pool.execute(
+    const result = await pool.query(
       `SELECT la.*, s.name, s.usn 
        FROM leave_applications la
        JOIN students s ON la.student_id = s.id
        WHERE la.status = 'pending'
        ORDER BY la.applied_at ASC`
     )
-    return rows as mysql.RowDataPacket[]
+    return result.rows
   } catch (error) {
     console.error('Error fetching pending leave applications:', error)
     throw error
@@ -113,7 +112,7 @@ export async function getPendingLeaveApplications() {
 // Function to get approved leave applications for HOD
 export async function getApprovedLeaveApplications() {
   try {
-    const [rows] = await pool.execute(
+    const result = await pool.query(
       `SELECT la.*, s.name, s.usn 
        FROM leave_applications la
        JOIN students s ON la.student_id = s.id
@@ -121,7 +120,7 @@ export async function getApprovedLeaveApplications() {
        ORDER BY la.processed_at DESC
        LIMIT 10`
     )
-    return rows as mysql.RowDataPacket[]
+    return result.rows
   } catch (error) {
     console.error('Error fetching approved leave applications:', error)
     throw error
@@ -141,10 +140,10 @@ export async function submitLeaveApplication(data: {
   try {
     const { studentId, leaveType, startDate, endDate, reason, attachmentPath, halfDaySession } = data
     
-    const [result]: any = await pool.execute(
+    const result = await pool.query(
       `INSERT INTO leave_applications 
        (student_id, leave_type, half_day_session, start_date, end_date, reason, attachment_path)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
       [
         studentId,
         leaveType,
@@ -156,7 +155,7 @@ export async function submitLeaveApplication(data: {
       ]
     )
     
-    return result.insertId
+    return result.rows[0].id
   } catch (error) {
     console.error('Error submitting leave application:', error)
     throw error
@@ -173,14 +172,14 @@ export async function submitSpecialLeaveRequest(data: {
   try {
     const { studentId, reason, explanation, attachmentPath } = data
     
-    const [result]: any = await pool.execute(
+    const result = await pool.query(
       `INSERT INTO special_leave_requests 
        (student_id, reason, explanation, attachment_path)
-       VALUES (?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4) RETURNING id`,
       [studentId, reason, explanation, attachmentPath]
     )
     
-    return result.insertId
+    return result.rows[0].id
   } catch (error) {
     console.error('Error submitting special leave request:', error)
     throw error
@@ -190,11 +189,11 @@ export async function submitSpecialLeaveRequest(data: {
 // Function to update leave balance
 export async function updateLeaveBalance(studentId: number, daysTaken: number) {
   try {
-    await pool.execute(
+    await pool.query(
       `UPDATE leave_balances 
-       SET leave_taken = leave_taken + ?, 
-           leave_remaining = leave_remaining - ?
-       WHERE student_id = ?`,
+       SET leave_taken = leave_taken + $1, 
+           leave_remaining = leave_remaining - $2
+       WHERE student_id = $3`,
       [daysTaken, daysTaken, studentId]
     )
   } catch (error) {
