@@ -5,10 +5,10 @@ import { Pool } from 'pg'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
+  // Force using POSTGRES_URL connection string
+  const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL
+  
   try {
-    // Force using POSTGRES_URL connection string
-    const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL
-    
     if (!connectionString) {
       throw new Error('No database connection string found. Please set POSTGRES_URL environment variable.')
     }
@@ -38,11 +38,9 @@ export async function GET() {
       message: 'Database connection successful',
       data: result.rows,
       config: {
-        host: dbConfig.host,
-        port: dbConfig.port,
-        user: dbConfig.user,
-        database: dbConfig.database,
-        hasPassword: !!dbConfig.password
+        connectionString: connectionString.substring(0, 50) + '...',
+        sslEnabled: true,
+        connectionMethod: 'POSTGRES_URL'
       }
     })
   } catch (error: any) {
@@ -51,11 +49,9 @@ export async function GET() {
       success: false,
       error: error.message,
       config: {
-        host: process.env.DB_HOST || 'localhost',
-        port: process.env.DB_PORT || '3306',
-        user: process.env.DB_USER || 'root',
-        database: process.env.DB_NAME || 'leave_application_system',
-        hasPassword: !!process.env.DB_PASSWORD
+        connectionString: connectionString ? connectionString.substring(0, 50) + '...' : 'Not available',
+        sslEnabled: true,
+        connectionMethod: 'POSTGRES_URL'
       }
     }, { status: 500 })
   }
