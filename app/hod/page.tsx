@@ -2,6 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useNotification } from '../../components/Notification'
+import { Navigation } from '../../components/Navigation'
+import { LoadingSpinner } from '../../components/LoadingSpinner'
+import { ErrorMessage } from '../../components/ErrorMessage'
 
 // Define TypeScript interfaces
 interface LeaveApplication {
@@ -31,19 +35,28 @@ export default function HODDashboard() {
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [rejectId, setRejectId] = useState<number | null>(null)
   const [rejectionReason, setRejectionReason] = useState('')
+  const { showNotification } = useNotification()
 
   // Fetch leave data
-// Check if HOD is authenticated
-      const eid = localStorage.getItem('hod_eid')
-      
-      if (!eid) {
-        // Redirect to login page if not authenticated
-        window.location.href = '/login'
-        return
-      }
   useEffect(() => {
     const fetchLeaveData = async () => {
       try {
+        // Get EID from cookie (set during login)
+        const getCookie = (name: string) => {
+          const value = `; ${document.cookie}`
+          const parts = value.split(`; ${name}=`)
+          if (parts.length === 2) return parts.pop()?.split(';').shift()
+          return null
+        }
+        
+        const eid = getCookie('hod_auth')
+        
+        if (!eid) {
+          // Redirect to login page if not authenticated
+          window.location.href = '/login'
+          return
+        }
+        
         // Fetch pending leave applications
         const pendingResponse = await fetch('/api/hod/pending')
         const pendingResult = await pendingResponse.json()
@@ -95,7 +108,11 @@ export default function HODDashboard() {
         if (pendingResult.success && approvedResult.success) {
           setPendingLeaves(pendingResult.data)
           setApprovedLeaves(approvedResult.data)
-          alert(`Leave application ${id} approved!`)
+          showNotification({
+            type: 'success',
+            title: 'Leave Approved',
+            message: `Student leave application approved successfully!`
+          })
         } else {
           throw new Error(pendingResult.error || approvedResult.error || 'Failed to refresh data')
         }
@@ -104,7 +121,11 @@ export default function HODDashboard() {
       }
     } catch (err) {
       console.error('Error approving leave:', err)
-      alert('Failed to approve leave application')
+      showNotification({
+        type: 'error',
+        title: 'Approval Failed',
+        message: 'Failed to approve leave application. Please try again.'
+      })
     } finally {
       setProcessingId(null)
     }
@@ -139,7 +160,11 @@ export default function HODDashboard() {
         if (pendingResult.success && approvedResult.success) {
           setPendingLeaves(pendingResult.data)
           setApprovedLeaves(approvedResult.data)
-          alert(`Leave application ${id} rejected!`)
+          showNotification({
+            type: 'warning',
+            title: 'Leave Rejected',
+            message: `Student leave application rejected.`
+          })
         } else {
           throw new Error(pendingResult.error || approvedResult.error || 'Failed to refresh data')
         }
@@ -148,7 +173,11 @@ export default function HODDashboard() {
       }
     } catch (err) {
       console.error('Error rejecting leave:', err)
-      alert('Failed to reject leave application')
+      showNotification({
+        type: 'error',
+        title: 'Rejection Failed',
+        message: 'Failed to reject leave application. Please try again.'
+      })
     } finally {
       setProcessingId(null)
     }
@@ -167,248 +196,261 @@ export default function HODDashboard() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+        <Navigation userType="hod" />
+        <LoadingSpinner className="h-64" />
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="max-w-6xl mx-auto">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-          <h2 className="text-xl font-bold text-red-800 mb-2">Error</h2>
-          <p className="text-red-600">{error}</p>
-        </div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+        <Navigation userType="hod" />
+        <ErrorMessage 
+          message={error}
+          details={[
+            'Your database is running and accessible',
+            'Your database credentials in the .env file are correct',
+            'You have run the database initialization script: npm run init-db'
+          ]}
+        />
       </div>
     )
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6 border border-gray-200 dark:border-gray-700">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">HOD Dashboard</h1>
-          <div className="flex gap-3">
-            <Link
-              href="/hod/students"
-              className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300"
-            >
-              View All Students
-            </Link>
-            <Link
-              href="/"
-              className="bg-gray-600 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300"
-            >
-              Student View
-            </Link>
-            <button
-              onClick={() => {
-                localStorage.removeItem('hod_eid')
-                window.location.href = '/'
-              }}
-              className="bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-
-        <p className="text-gray-600 dark:text-gray-400 mb-6">Manage student leave applications</p>
-        
-        {/* Pending Leaves Section */}
-        <div className="mb-10">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Pending Leave Applications</h2>
-            <span className="bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 py-1 px-3 rounded-full font-semibold">
-              {pendingLeaves.length} pending
-            </span>
-          </div>
-
-          {pendingLeaves.length === 0 ? (
-            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-8 text-center border border-gray-200 dark:border-gray-600">
-              <p className="text-gray-600 dark:text-gray-400">No pending leave applications</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {pendingLeaves.map((leave) => (
-                <div key={leave.id} className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-900 dark:text-white">{leave.name}</h3>
-                      <p className="text-gray-600 dark:text-gray-400">{leave.usn}</p>
-                    </div>
-                    <span className="bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 py-1 px-3 rounded-full text-sm font-semibold">
-                      {leave.leave_type === 'half' ? 'Half Day' : 'Full Day'}
-                    </span>
-                  </div>
-
-                  <div className="mb-4">
-                    <p className="font-medium text-gray-700 dark:text-gray-300">Leave Dates:</p>
-                    <p className="text-gray-600 dark:text-gray-400">
-                      {leave.start_date} {leave.end_date && leave.start_date !== leave.end_date ? `to ${leave.end_date}` : ''}
-                      {leave.leave_type === 'half' && leave.half_day_session && (
-                        <span className="ml-2">({leave.half_day_session})</span>
-                      )}
-                    </p>
-                  </div>
-
-                  <div className="mb-4">
-                    <p className="font-medium text-gray-700 dark:text-gray-300">Reason:</p>
-                    <p className="text-gray-600 dark:text-gray-400">{leave.reason}</p>
-                  </div>
-
-                  {leave.attachment_path && (
-                    <div className="mb-4">
-                      <p className="font-medium text-gray-700 dark:text-gray-300">Attachment:</p>
-                      <Link href={leave.attachment_path} className="text-blue-600 dark:text-blue-400 hover:underline">
-                        View Document
-                      </Link>
-                    </div>
-                  )}
-                  
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => handleApprove(leave.id)}
-                      disabled={processingId === leave.id}
-                      className={`flex-1 ${
-                        processingId === leave.id 
-                          ? 'bg-gray-400 cursor-not-allowed' 
-                          : 'bg-green-600 hover:bg-green-700'
-                      } text-white font-bold py-2 px-4 rounded-lg transition duration-300`}
-                    >
-                      {processingId === leave.id ? 'Approving...' : 'Approve'}
-                    </button>
-                    <button
-                      onClick={() => openRejectModal(leave.id)}
-                      disabled={processingId === leave.id}
-                      className={`flex-1 ${
-                        processingId === leave.id 
-                          ? 'bg-gray-400 cursor-not-allowed' 
-                          : 'bg-red-600 hover:bg-red-700'
-                      } text-white font-bold py-2 px-4 rounded-lg transition duration-300`}
-                    >
-                      {processingId === leave.id ? 'Rejecting...' : 'Reject'}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        
-        {/* Messaging Section */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700 mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
-              <svg className="w-6 h-6 mr-2 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-              Student Messages
-            </h2>
-            <Link
-              href="/hod/students"
-              className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 text-center shadow-md hover:shadow-lg"
-            >
-              View All Students
-            </Link>
-          </div>
-
-          <div className="space-y-4">
-            {/* Sample messages - in a real app, this would be fetched from the API */}
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="font-semibold text-blue-900 dark:text-blue-100">From: Rushidhar (4PM22CG001)</p>
-                  <p className="text-sm text-blue-800 dark:text-blue-200 mt-1">Subject: Leave Extension Request</p>
-                  <p className="text-blue-700 dark:text-blue-300 mt-2">I would like to request an extension for my medical leave...</p>
-                </div>
-                <div className="text-right">
-                  <span className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs px-2 py-1 rounded-full">
-                    New
-                  </span>
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">2 hours ago</p>
-                </div>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+      <Navigation 
+        userType="hod" 
+        userName="HOD" 
+        userIdentifier="Head of Department" 
+      />
+      
+      <div className="py-8 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-6xl mx-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6 border border-gray-200 dark:border-gray-700">
+            <div className="flex justify-between items-center mb-6">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">HOD Dashboard</h1>
+              <div className="flex gap-3">
+                <Link
+                  href="/hod/students"
+                  className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300"
+                >
+                  View All Students
+                </Link>
+                <Link
+                  href="/hod/password-reset"
+                  className="bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300"
+                >
+                  Change Password
+                </Link>
+                <Link
+                  href="/"
+                  className="bg-gray-600 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300"
+                >
+                  Student View
+                </Link>
               </div>
             </div>
 
-            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="font-semibold text-green-900 dark:text-green-100">From: Metigouda (4PM22CG002)</p>
-                  <p className="text-sm text-green-800 dark:text-green-200 mt-1">Subject: Project Submission</p>
-                  <p className="text-green-700 dark:text-green-300 mt-2">I have submitted my project documentation as requested...</p>
-                </div>
-                <div className="text-right">
-                  <span className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 text-xs px-2 py-1 rounded-full">
-                    Read
-                  </span>
-                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">1 day ago</p>
-                </div>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">Manage student leave applications</p>
+            
+            {/* Pending Leaves Section */}
+            <div className="mb-10">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Pending Leave Applications</h2>
+                <span className="bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 py-1 px-3 rounded-full font-semibold">
+                  {pendingLeaves.length} pending
+                </span>
               </div>
-            </div>
 
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="font-semibold text-yellow-900 dark:text-yellow-100">From: Sourabh Patil (CS2023001)</p>
-                  <p className="text-sm text-yellow-800 dark:text-yellow-200 mt-1">Subject: Academic Performance</p>
-                  <p className="text-yellow-700 dark:text-yellow-300 mt-2">Thank you for the feedback on my recent performance...</p>
+              {pendingLeaves.length === 0 ? (
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-8 text-center border border-gray-200 dark:border-gray-600">
+                  <p className="text-gray-600 dark:text-gray-400">No pending leave applications</p>
                 </div>
-                <div className="text-right">
-                  <span className="bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 text-xs px-2 py-1 rounded-full">
-                    Read
-                  </span>
-                  <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">3 days ago</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Approved Leaves Section */}
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Recent Approved Leaves</h2>
-
-          {approvedLeaves.length === 0 ? (
-            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-8 text-center border border-gray-200 dark:border-gray-600">
-              <p className="text-gray-600 dark:text-gray-400">No approved leave applications</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full bg-white dark:bg-gray-800 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-                <thead className="bg-gray-100 dark:bg-gray-700">
-                  <tr>
-                    <th className="py-3 px-4 text-left text-gray-900 dark:text-white font-semibold">Student</th>
-                    <th className="py-3 px-4 text-left text-gray-900 dark:text-white font-semibold">USN</th>
-                    <th className="py-3 px-4 text-left text-gray-900 dark:text-white font-semibold">Leave Type</th>
-                    <th className="py-3 px-4 text-left text-gray-900 dark:text-white font-semibold">Dates</th>
-                    <th className="py-3 px-4 text-left text-gray-900 dark:text-white font-semibold">Reason</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {approvedLeaves.map((leave) => (
-                    <tr key={leave.id} className="border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <td className="py-3 px-4 text-gray-900 dark:text-white">{leave.name}</td>
-                      <td className="py-3 px-4 text-gray-900 dark:text-white">{leave.usn}</td>
-                      <td className="py-3 px-4">
-                        <span className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 py-1 px-2 rounded-full text-xs">
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {pendingLeaves.map((leave) => (
+                    <div key={leave.id} className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6">
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h3 className="text-xl font-bold text-gray-900 dark:text-white">{leave.name}</h3>
+                          <p className="text-gray-600 dark:text-gray-400">{leave.usn}</p>
+                        </div>
+                        <span className="bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 py-1 px-3 rounded-full text-sm font-semibold">
                           {leave.leave_type === 'half' ? 'Half Day' : 'Full Day'}
                         </span>
-                      </td>
-                      <td className="py-3 px-4 text-gray-900 dark:text-white">
-                        {leave.start_date} {leave.end_date && leave.start_date !== leave.end_date ? `to ${leave.end_date}` : ''}
-                        {leave.leave_type === 'half' && leave.half_day_session && (
-                          <span className="ml-2">({leave.half_day_session})</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-gray-900 dark:text-white">{leave.reason}</td>
-                    </tr>
+                      </div>
+
+                      <div className="mb-4">
+                        <p className="font-medium text-gray-700 dark:text-gray-300">Leave Dates:</p>
+                        <p className="text-gray-600 dark:text-gray-400">
+                          {leave.start_date} {leave.end_date && leave.start_date !== leave.end_date ? `to ${leave.end_date}` : ''}
+                          {leave.leave_type === 'half' && leave.half_day_session && (
+                            <span className="ml-2">({leave.half_day_session})</span>
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="mb-4">
+                        <p className="font-medium text-gray-700 dark:text-gray-300">Reason:</p>
+                        <p className="text-gray-600 dark:text-gray-400">{leave.reason}</p>
+                      </div>
+
+                      {leave.attachment_path && (
+                        <div className="mb-4">
+                          <p className="font-medium text-gray-700 dark:text-gray-300">Attachment:</p>
+                          <Link href={leave.attachment_path} className="text-blue-600 dark:text-blue-400 hover:underline">
+                            View Document
+                          </Link>
+                        </div>
+                      )}
+                      
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => handleApprove(leave.id)}
+                          disabled={processingId === leave.id}
+                          className={`flex-1 ${
+                            processingId === leave.id 
+                              ? 'bg-gray-400 cursor-not-allowed' 
+                              : 'bg-green-600 hover:bg-green-700'
+                          } text-white font-bold py-2 px-4 rounded-lg transition duration-300`}
+                        >
+                          {processingId === leave.id ? 'Approving...' : 'Approve'}
+                        </button>
+                        <button
+                          onClick={() => openRejectModal(leave.id)}
+                          disabled={processingId === leave.id}
+                          className={`flex-1 ${
+                            processingId === leave.id 
+                              ? 'bg-gray-400 cursor-not-allowed' 
+                              : 'bg-red-600 hover:bg-red-700'
+                          } text-white font-bold py-2 px-4 rounded-lg transition duration-300`}
+                        >
+                          {processingId === leave.id ? 'Rejecting...' : 'Reject'}
+                        </button>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              )}
             </div>
-          )}
+            
+            {/* Messaging Section */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700 mb-8">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+                  <svg className="w-6 h-6 mr-2 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                  Student Messages
+                </h2>
+                <Link
+                  href="/hod/students"
+                  className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 text-center shadow-md hover:shadow-lg"
+                >
+                  View All Students
+                </Link>
+              </div>
+
+              <div className="space-y-4">
+                {/* Sample messages - in a real app, this would be fetched from the API */}
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-semibold text-blue-900 dark:text-blue-100">From: Rushidhar (4PM22CG001)</p>
+                      <p className="text-sm text-blue-800 dark:text-blue-200 mt-1">Subject: Leave Extension Request</p>
+                      <p className="text-blue-700 dark:text-blue-300 mt-2">I would like to request an extension for my medical leave...</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs px-2 py-1 rounded-full">
+                        New
+                      </span>
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">2 hours ago</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-semibold text-green-900 dark:text-green-100">From: Metigouda (4PM22CG002)</p>
+                      <p className="text-sm text-green-800 dark:text-green-200 mt-1">Subject: Project Submission</p>
+                      <p className="text-green-700 dark:text-green-300 mt-2">I have submitted my project documentation as requested...</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 text-xs px-2 py-1 rounded-full">
+                        Read
+                      </span>
+                      <p className="text-xs text-green-600 dark:text-green-400 mt-1">1 day ago</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-semibold text-yellow-900 dark:text-yellow-100">From: Sourabh Patil (CS2023001)</p>
+                      <p className="text-sm text-yellow-800 dark:text-yellow-200 mt-1">Subject: Academic Performance</p>
+                      <p className="text-yellow-700 dark:text-yellow-300 mt-2">Thank you for the feedback on my recent performance...</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 text-xs px-2 py-1 rounded-full">
+                        Read
+                      </span>
+                      <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">3 days ago</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Approved Leaves Section */}
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Recent Approved Leaves</h2>
+
+              {approvedLeaves.length === 0 ? (
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-8 text-center border border-gray-200 dark:border-gray-600">
+                  <p className="text-gray-600 dark:text-gray-400">No approved leave applications</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full bg-white dark:bg-gray-800 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                    <thead className="bg-gray-100 dark:bg-gray-700">
+                      <tr>
+                        <th className="py-3 px-4 text-left text-gray-900 dark:text-white font-semibold">Student</th>
+                        <th className="py-3 px-4 text-left text-gray-900 dark:text-white font-semibold">USN</th>
+                        <th className="py-3 px-4 text-left text-gray-900 dark:text-white font-semibold">Leave Type</th>
+                        <th className="py-3 px-4 text-left text-gray-900 dark:text-white font-semibold">Dates</th>
+                        <th className="py-3 px-4 text-left text-gray-900 dark:text-white font-semibold">Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {approvedLeaves.map((leave) => (
+                        <tr key={leave.id} className="border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">
+                          <td className="py-3 px-4 text-gray-900 dark:text-white">{leave.name}</td>
+                          <td className="py-3 px-4 text-gray-900 dark:text-white">{leave.usn}</td>
+                          <td className="py-3 px-4">
+                            <span className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 py-1 px-2 rounded-full text-xs">
+                              {leave.leave_type === 'half' ? 'Half Day' : 'Full Day'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-gray-900 dark:text-white">
+                            {leave.start_date} {leave.end_date && leave.start_date !== leave.end_date ? `to ${leave.end_date}` : ''}
+                            {leave.leave_type === 'half' && leave.half_day_session && (
+                              <span className="ml-2">({leave.half_day_session})</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-gray-900 dark:text-white">{leave.reason}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
       

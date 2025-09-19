@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useNotification } from '../../../components/Notification'
+import { EditCGPAModal } from '../../../components/EditModals'
 
 // Define TypeScript interfaces
 interface Student {
@@ -28,6 +30,7 @@ interface StudentWithLeave extends Student {
 }
 
 export default function StudentsOverview() {
+  const { showNotification } = useNotification()
   const [students, setStudents] = useState<StudentWithLeave[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
@@ -41,9 +44,21 @@ export default function StudentsOverview() {
   const [messageContent, setMessageContent] = useState('')
   const [sendingMessage, setSendingMessage] = useState(false)
 
+  // Edit CGPA state
+  const [editCGPAModalOpen, setEditCGPAModalOpen] = useState(false)
+  const [studentToEdit, setStudentToEdit] = useState<StudentWithLeave | null>(null)
+
   // Check if HOD is authenticated
   useEffect(() => {
-    const eid = localStorage.getItem('hod_eid')
+    // Get EID from cookie (set during login)
+    const getCookie = (name: string) => {
+      const value = `; ${document.cookie}`
+      const parts = value.split(`; ${name}=`)
+      if (parts.length === 2) return parts.pop()?.split(';').shift()
+      return null
+    }
+    
+    const eid = getCookie('hod_auth')
     if (!eid) {
       window.location.href = '/login'
       return
@@ -58,6 +73,8 @@ export default function StudentsOverview() {
         const result = await response.json()
 
         if (result.success) {
+          console.log('Students data:', result.data)
+          console.log('CGPA values:', result.data.map((s: any) => ({ name: s.name, cgpa: s.cgpa, type: typeof s.cgpa })))
           setStudents(result.data)
         } else {
           setError(result.error || 'Failed to fetch students data')
@@ -89,6 +106,26 @@ export default function StudentsOverview() {
     setMessageContent('')
   }
 
+  // Open edit CGPA modal
+  const openEditCGPAModal = (student: StudentWithLeave) => {
+    setStudentToEdit(student)
+    setEditCGPAModalOpen(true)
+  }
+
+  // Refresh students data
+  const refreshStudentsData = async () => {
+    try {
+      const response = await fetch('/api/students/all')
+      const result = await response.json()
+
+      if (result.success) {
+        setStudents(result.data)
+      }
+    } catch (err) {
+      console.error('Error refreshing students data:', err)
+    }
+  }
+
   // Close message modal
   const closeMessageModal = () => {
     setMessageModalOpen(false)
@@ -100,7 +137,11 @@ export default function StudentsOverview() {
   // Send message
   const sendMessage = async () => {
     if (!selectedStudent || !messageSubject.trim() || !messageContent.trim()) {
-      alert('Please fill in all fields')
+      showNotification({
+        type: 'warning',
+        title: 'Missing Information',
+        message: 'Please fill in all fields before sending the message'
+      })
       return
     }
 
@@ -124,14 +165,26 @@ export default function StudentsOverview() {
       const result = await response.json()
 
       if (result.success) {
-        alert('Message sent successfully!')
+        showNotification({
+          type: 'success',
+          title: 'Message Sent',
+          message: `Message sent to student successfully!`
+        })
         closeMessageModal()
       } else {
-        alert('Failed to send message: ' + result.error)
+        showNotification({
+          type: 'error',
+          title: 'Message Failed',
+          message: 'Failed to send message to student'
+        })
       }
     } catch (error) {
       console.error('Error sending message:', error)
-      alert('Failed to send message. Please try again.')
+      showNotification({
+        type: 'error',
+        title: 'Connection Error',
+        message: 'Failed to send message. Please check your connection and try again.'
+      })
     } finally {
       setSendingMessage(false)
     }
@@ -297,8 +350,11 @@ export default function StudentsOverview() {
                       >
                         View Details
                       </Link>
-                      <button className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-3 py-1 rounded text-sm hover:bg-green-200 dark:hover:bg-green-800 transition-colors">
-                        Edit Marks
+                      <button 
+                        onClick={() => openEditCGPAModal(student)}
+                        className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-3 py-1 rounded text-sm hover:bg-green-200 dark:hover:bg-green-800 transition-colors"
+                      >
+                        Edit CGPA
                       </button>
                       <button
                         onClick={() => openMessageModal(student)}
@@ -334,7 +390,19 @@ export default function StudentsOverview() {
           </div>
           <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg border border-purple-200 dark:border-purple-800">
             <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-              {students.length > 0 ? (students.reduce((acc, s) => acc + (s.cgpa || 0), 0) / students.length).toFixed(2) : '0.00'}
+              {(() => {
+                const validStudents = students.filter(s => s.cgpa && s.cgpa > 0)
+                console.log('Valid students for CGPA:', validStudents.length)
+                console.log('CGPA values:', validStudents.map(s => ({ name: s.name, cgpa: s.cgpa, type: typeof s.cgpa })))
+                
+                if (validStudents.length > 0) {
+                  const total = validStudents.reduce((acc, s) => acc + s.cgpa, 0)
+                  const average = total / validStudents.length
+                  console.log('Total CGPA:', total, 'Average:', average)
+                  return average.toFixed(2)
+                }
+                return '0.00'
+              })()}
             </p>
             <p className="text-sm text-purple-800 dark:text-purple-200">Average CGPA</p>
           </div>
@@ -416,6 +484,21 @@ export default function StudentsOverview() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Edit CGPA Modal */}
+      {studentToEdit && (
+        <EditCGPAModal
+          isOpen={editCGPAModalOpen}
+          onClose={() => {
+            setEditCGPAModalOpen(false)
+            setStudentToEdit(null)
+          }}
+          studentId={studentToEdit.id}
+          currentCGPA={studentToEdit.cgpa}
+          studentName={studentToEdit.name}
+          onUpdate={refreshStudentsData}
+        />
       )}
     </div>
   )

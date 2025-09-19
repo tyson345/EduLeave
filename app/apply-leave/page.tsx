@@ -1,12 +1,26 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { Navigation } from '../../components/Navigation'
+import { useNotification } from '../../components/Notification'
+
+interface LeaveBalance {
+  id: number
+  student_id: number
+  semester: number
+  total_leave_allowed: number
+  leave_taken: number
+  leave_remaining: number
+}
 
 export default function ApplyLeave() {
   const router = useRouter()
+  const { showNotification } = useNotification()
   
+  const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null)
+  const [loading, setLoading] = useState(true)
   const [formData, setFormData] = useState({
     leaveType: 'full',
     startDate: '',
@@ -19,6 +33,58 @@ export default function ApplyLeave() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+
+  // Fetch leave balance on component mount
+  useEffect(() => {
+    const fetchLeaveBalance = async () => {
+      try {
+        // Get USN from cookie (set during login)
+        const getCookie = (name: string) => {
+          const value = `; ${document.cookie}`
+          const parts = value.split(`; ${name}=`)
+          if (parts.length === 2) return parts.pop()?.split(';').shift()
+          return null
+        }
+        
+        const usn = getCookie('student_auth')
+
+        if (!usn) {
+          showNotification({
+            type: 'error',
+            title: 'Authentication Required',
+            message: 'Please login to access this page'
+          })
+          router.push('/login')
+          return
+        }
+
+        // Fetch student data to get leave balance
+        const studentResponse = await fetch(`/api/student?usn=${usn}`)
+        const studentResult = await studentResponse.json()
+
+        if (studentResult.success) {
+          setLeaveBalance(studentResult.data.leaveBalance)
+        } else {
+          showNotification({
+            type: 'error',
+            title: 'Error',
+            message: 'Failed to fetch leave balance information'
+          })
+        }
+      } catch (err) {
+        console.error('Error fetching leave balance:', err)
+        showNotification({
+          type: 'error',
+          title: 'Error',
+          message: 'Failed to fetch leave balance information'
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchLeaveBalance()
+  }, [router, showNotification])
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
@@ -98,11 +164,22 @@ export default function ApplyLeave() {
       setSubmitError(null)
       
       try {
-        // Get student ID from localStorage (set during login)
-        const usn = localStorage.getItem('student_usn')
+        // Get USN from cookie (set during login)
+        const getCookie = (name: string) => {
+          const value = `; ${document.cookie}`
+          const parts = value.split(`; ${name}=`)
+          if (parts.length === 2) return parts.pop()?.split(';').shift()
+          return null
+        }
+        
+        const usn = getCookie('student_auth')
 
         if (!usn) {
-          alert('Please login to submit leave application')
+          showNotification({
+            type: 'error',
+            title: 'Authentication Required',
+            message: 'Please login to submit leave application'
+          })
           router.push('/login')
           return
         }
@@ -151,7 +228,11 @@ export default function ApplyLeave() {
         const result = await response.json()
         
         if (result.success) {
-          alert('Leave application submitted successfully!')
+          showNotification({
+            type: 'success',
+            title: 'Leave Application Submitted',
+            message: 'Your leave application has been submitted successfully!'
+          })
           router.push('/dashboard')
         } else {
           setSubmitError(result.error || 'Failed to submit leave application')
@@ -164,10 +245,25 @@ export default function ApplyLeave() {
       }
     }
   }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+        <Navigation userType="student" />
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      </div>
+    )
+  }
   
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+      <Navigation userType="student" />
+      
+      <div className="py-8 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Apply for Leave</h1>
           <Link
@@ -177,6 +273,25 @@ export default function ApplyLeave() {
             ← Back to Dashboard
           </Link>
         </div>
+
+        {/* Leave Balance Warning */}
+        {leaveBalance && leaveBalance.leave_remaining <= 5 && (
+          <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+            <div className="flex items-center">
+              <svg className="w-5 h-5 text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <div>
+                <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
+                  Low Leave Balance Warning
+                </h3>
+                <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                  You only have {leaveBalance.leave_remaining} days remaining out of {leaveBalance.total_leave_allowed} total days allowed.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
         
         {submitError && (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
@@ -365,6 +480,8 @@ export default function ApplyLeave() {
             </button>
           </div>
         </form>
+          </div>
+        </div>
       </div>
     </div>
   )

@@ -48,7 +48,7 @@ export async function GET() {
       email: row.email,
       semester: row.semester,
       department: row.department,
-      cgpa: row.cgpa,
+      cgpa: parseFloat(row.cgpa) || 0, // Ensure CGPA is a number
       leave_balance: row.leave_balance_id ? {
         id: row.leave_balance_id,
         student_id: row.id,

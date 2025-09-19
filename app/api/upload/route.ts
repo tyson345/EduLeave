@@ -2,17 +2,9 @@ import { NextResponse } from 'next/server'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
-import formidable from 'formidable'
 
 // Configure the runtime to use Node.js APIs
 export const runtime = 'nodejs'
-
-// Disable default body parsing for file uploads
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-}
 
 // Handle POST request for file upload
 export async function POST(request: Request) {

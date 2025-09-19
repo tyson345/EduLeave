@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useNotification } from '../../../../components/Notification'
+import { EditCGPAModal, EditAttendanceModal, EditMarksModal, EditLeaveBalanceModal } from '../../../../components/EditModals'
 
 // Define TypeScript interfaces
 interface Student {
@@ -59,6 +61,7 @@ interface StudentDetails extends Student {
 }
 
 export default function StudentDetailsPage() {
+  const { showNotification } = useNotification()
   const params = useParams()
   const router = useRouter()
   const [student, setStudent] = useState<StudentDetails | null>(null)
@@ -66,9 +69,25 @@ export default function StudentDetailsPage() {
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'overview' | 'attendance' | 'marks' | 'leaves'>('overview')
 
+  // Edit modal states
+  const [editCGPAModalOpen, setEditCGPAModalOpen] = useState(false)
+  const [editAttendanceModalOpen, setEditAttendanceModalOpen] = useState(false)
+  const [editMarksModalOpen, setEditMarksModalOpen] = useState(false)
+  const [editLeaveBalanceModalOpen, setEditLeaveBalanceModalOpen] = useState(false)
+  const [selectedSemester, setSelectedSemester] = useState<number>(1)
+  const [selectedSubject, setSelectedSubject] = useState<string>('')
+
   // Check if HOD is authenticated
   useEffect(() => {
-    const eid = localStorage.getItem('hod_eid')
+    // Get EID from cookie (set during login)
+    const getCookie = (name: string) => {
+      const value = `; ${document.cookie}`
+      const parts = value.split(`; ${name}=`)
+      if (parts.length === 2) return parts.pop()?.split(';').shift()
+      return null
+    }
+    
+    const eid = getCookie('hod_auth')
     if (!eid) {
       router.push('/login')
       return
@@ -83,6 +102,8 @@ export default function StudentDetailsPage() {
         const result = await response.json()
 
         if (result.success) {
+          console.log('Student data fetched:', result.data)
+          console.log('Leave history:', result.data.leave_history)
           setStudent(result.data)
         } else {
           setError(result.error || 'Failed to fetch student details')
@@ -99,6 +120,20 @@ export default function StudentDetailsPage() {
       fetchStudentDetails()
     }
   }, [params.id])
+
+  // Refresh student data
+  const refreshStudentData = async () => {
+    try {
+      const response = await fetch(`/api/students/${params.id}`)
+      const result = await response.json()
+
+      if (result.success) {
+        setStudent(result.data)
+      }
+    } catch (err) {
+      console.error('Error refreshing student data:', err)
+    }
+  }
 
   // Calculate leave statistics for pie chart
   const getLeaveStats = () => {
@@ -242,16 +277,35 @@ export default function StudentDetailsPage() {
                 <span className="text-gray-600 dark:text-gray-400">Department:</span>
                 <span className="font-medium text-gray-900 dark:text-white">{student.department}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center">
                 <span className="text-gray-600 dark:text-gray-400">CGPA:</span>
-                <span className="font-medium text-orange-600 dark:text-orange-400">{student.cgpa}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-orange-600 dark:text-orange-400">{student.cgpa}</span>
+                  <button
+                    onClick={() => setEditCGPAModalOpen(true)}
+                    className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm"
+                  >
+                    ✏️ Edit
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Leave Statistics Pie Chart */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Leave Statistics</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Leave Statistics</h2>
+              <button
+                onClick={() => {
+                  setSelectedSemester(student.semester)
+                  setEditLeaveBalanceModalOpen(true)
+                }}
+                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm"
+              >
+                ✏️ Edit Leave Balance
+              </button>
+            </div>
             <div className="flex items-center justify-center">
               <div className="relative w-48 h-48">
                 <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
@@ -340,6 +394,7 @@ export default function StudentDetailsPage() {
                   <th className="py-3 px-6 text-left text-gray-900 dark:text-white font-semibold">Attended</th>
                   <th className="py-3 px-6 text-left text-gray-900 dark:text-white font-semibold">Percentage</th>
                   <th className="py-3 px-6 text-left text-gray-900 dark:text-white font-semibold">Status</th>
+                  <th className="py-3 px-6 text-left text-gray-900 dark:text-white font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -362,10 +417,21 @@ export default function StudentDetailsPage() {
                         {sem.percentage >= 75 ? 'Good' : 'Low'}
                       </span>
                     </td>
+                    <td className="py-3 px-6">
+                      <button
+                        onClick={() => {
+                          setSelectedSemester(sem.semester)
+                          setEditAttendanceModalOpen(true)
+                        }}
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm"
+                      >
+                        ✏️ Edit
+                      </button>
+                    </td>
                   </tr>
                 )) || (
                   <tr>
-                    <td colSpan={5} className="py-8 px-6 text-center text-gray-500 dark:text-gray-400">
+                    <td colSpan={6} className="py-8 px-6 text-center text-gray-500 dark:text-gray-400">
                       No attendance data available
                     </td>
                   </tr>
@@ -378,7 +444,7 @@ export default function StudentDetailsPage() {
 
       {activeTab === 'marks' && (
         <div className="space-y-6">
-          {student.semester_marks?.map((semester) => (
+          {student.semester_marks && student.semester_marks.length > 0 ? student.semester_marks.map((semester) => (
             <div key={semester.semester} className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
               <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">{semester.semester}th Semester Performance</h3>
 
@@ -393,11 +459,23 @@ export default function StudentDetailsPage() {
                           <p className="font-medium text-gray-900 dark:text-white">{subject.name}</p>
                           <p className="text-sm text-gray-600 dark:text-gray-400">{subject.marks}/{subject.total}</p>
                         </div>
-                        <div className="text-right">
-                          <p className="font-bold text-lg text-blue-600 dark:text-blue-400">{subject.grade}</p>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {((subject.marks / subject.total) * 100).toFixed(1)}%
-                          </p>
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            <p className="font-bold text-lg text-blue-600 dark:text-blue-400">{subject.grade}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              {subject.total > 0 ? ((subject.marks / subject.total) * 100).toFixed(1) : '0'}%
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setSelectedSemester(semester.semester)
+                              setSelectedSubject(subject.name)
+                              setEditMarksModalOpen(true)
+                            }}
+                            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm"
+                          >
+                            ✏️ Edit
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -440,7 +518,7 @@ export default function StudentDetailsPage() {
                 </div>
               </div>
             </div>
-          )) || (
+          )) : (
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 border border-gray-200 dark:border-gray-700 text-center">
               <p className="text-gray-500 dark:text-gray-400">No marks data available</p>
             </div>
@@ -475,8 +553,8 @@ export default function StudentDetailsPage() {
                       </span>
                     </td>
                     <td className="py-3 px-6 text-gray-900 dark:text-white">
-                      {leave.start_date}
-                      {leave.end_date && leave.start_date !== leave.end_date && ` to ${leave.end_date}`}
+                      {new Date(leave.start_date).toLocaleDateString()}
+                      {leave.end_date && leave.start_date !== leave.end_date && ` to ${new Date(leave.end_date).toLocaleDateString()}`}
                     </td>
                     <td className="py-3 px-6">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -496,7 +574,13 @@ export default function StudentDetailsPage() {
                 )) || (
                   <tr>
                     <td colSpan={4} className="py-8 px-6 text-center text-gray-500 dark:text-gray-400">
-                      No leave history available
+                      <div className="flex flex-col items-center gap-2">
+                        <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <p className="text-lg font-medium">No Leave Applications Found</p>
+                        <p className="text-sm">This student hasn't submitted any leave applications yet.</p>
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -504,6 +588,64 @@ export default function StudentDetailsPage() {
             </table>
           </div>
         </div>
+      )}
+
+      {/* Edit Modals */}
+      {student && (
+        <>
+          {/* Edit CGPA Modal */}
+          <EditCGPAModal
+            isOpen={editCGPAModalOpen}
+            onClose={() => setEditCGPAModalOpen(false)}
+            studentId={student.id}
+            currentCGPA={student.cgpa}
+            studentName={student.name}
+            onUpdate={refreshStudentData}
+          />
+
+          {/* Edit Attendance Modal */}
+          <EditAttendanceModal
+            isOpen={editAttendanceModalOpen}
+            onClose={() => setEditAttendanceModalOpen(false)}
+            studentId={student.id}
+            semester={selectedSemester}
+            studentName={student.name}
+            currentAttendance={student.attendance?.find(att => att.semester === selectedSemester) || {
+              semester: selectedSemester,
+              total_classes: 0,
+              attended_classes: 0,
+              percentage: 0
+            }}
+            onUpdate={refreshStudentData}
+          />
+
+          {/* Edit Marks Modal */}
+          <EditMarksModal
+            isOpen={editMarksModalOpen}
+            onClose={() => setEditMarksModalOpen(false)}
+            studentId={student.id}
+            semester={selectedSemester}
+            studentName={student.name}
+            subject={selectedSubject}
+            currentMarks={student.semester_marks
+              ?.find(sem => sem.semester === selectedSemester)
+              ?.subjects.find(sub => sub.name === selectedSubject)}
+            onUpdate={refreshStudentData}
+          />
+
+          {/* Edit Leave Balance Modal */}
+          {student.leave_balance && (
+            <EditLeaveBalanceModal
+              isOpen={editLeaveBalanceModalOpen}
+              onClose={() => setEditLeaveBalanceModalOpen(false)}
+              studentId={student.id}
+              semester={selectedSemester}
+              studentName={student.name}
+              currentBalance={student.leave_balance}
+              onUpdate={refreshStudentData}
+            />
+          )}
+        </>
       )}
     </div>
   )

@@ -10,20 +10,21 @@
     "init-db": "node scripts/init-db.js"
   },
   "dependencies": {
+    "dotenv": "^17.2.2",
+    "formidable": "^3.5.1",
+    "mysql2": "^3.14.5",
     "next": "14.2.5",
     "react": "18",
-    "react-dom": "18",
-    "mysql2": "^3.9.7",
-    "formidable": "^3.5.1"
+    "react-dom": "18"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "postcss": "^8",
-    "tailwindcss": "^3.4.1",
     "eslint": "^8",
     "eslint-config-next": "14.2.5",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
     "ts-node": "^10.9.2"
   }
 }

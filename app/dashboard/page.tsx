@@ -2,6 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { Navigation } from '../../components/Navigation'
+import { StatsCard } from '../../components/StatsCard'
+import { PageHeader } from '../../components/PageHeader'
+import { LoadingSpinner } from '../../components/LoadingSpinner'
+import { ErrorMessage } from '../../components/ErrorMessage'
+import { EmptyState } from '../../components/EmptyState'
+import { useNotification } from '../../components/Notification'
 
 // Define TypeScript interfaces
 interface Student {
@@ -36,6 +43,7 @@ interface Message {
 }
 
 export default function StudentDashboard() {
+  const { showNotification } = useNotification()
   const [student, setStudent] = useState<Student | null>(null)
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -48,8 +56,15 @@ export default function StudentDashboard() {
   useEffect(() => {
     const fetchStudentData = async () => {
       try {
-        // Get USN from localStorage (set during login)
-        const usn = localStorage.getItem('student_usn')
+        // Get USN from cookie (set during login)
+        const getCookie = (name: string) => {
+          const value = `; ${document.cookie}`
+          const parts = value.split(`; ${name}=`)
+          if (parts.length === 2) return parts.pop()?.split(';').shift()
+          return null
+        }
+        
+        const usn = getCookie('student_auth')
 
         if (!usn) {
           // Redirect to login page if not authenticated
@@ -71,6 +86,15 @@ export default function StudentDashboard() {
 
           if (messagesResult.success) {
             setMessages(messagesResult.data)
+            // Only show notification if there are new unread messages
+            const unreadCount = messagesResult.data.filter((msg: any) => !msg.is_read).length
+            if (unreadCount > 0) {
+              showNotification({
+                type: 'info',
+                title: 'New Messages',
+                message: `You have ${unreadCount} new message${unreadCount > 1 ? 's' : ''} from HOD`
+              })
+            }
           }
         } else {
           setError(studentResult.error || 'Failed to fetch student data')
@@ -124,142 +148,117 @@ export default function StudentDashboard() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+        <Navigation userType="student" />
+        <LoadingSpinner className="h-64" />
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-          <h2 className="text-xl font-bold text-red-800 mb-2">Error</h2>
-          <p className="text-red-600">{error}</p>
-          <div className="mt-4">
-            <p className="text-gray-700">
-              Please make sure:
-            </p>
-            <ul className="list-disc pl-5 mt-2 text-gray-700">
-              <li>Your database is running and accessible</li>
-              <li>Your database credentials in the .env file are correct</li>
-              <li>You have run the database initialization script: <code className="bg-gray-100 px-1 rounded">npm run init-db</code></li>
-            </ul>
-          </div>
-        </div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+        <Navigation userType="student" />
+        <ErrorMessage 
+          message={error}
+          details={[
+            'Your database is running and accessible',
+            'Your database credentials in the .env file are correct',
+            'You have run the database initialization script: npm run init-db'
+          ]}
+        />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4 sm:px-6 lg:px-8 transition-colors duration-300">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+      <Navigation 
+        userType="student" 
+        userName={student?.name} 
+        userIdentifier={student?.usn} 
+      />
+      
+      <div className="py-8 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto space-y-8">
 
-        {/* Header Section */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Student Dashboard</h1>
-              <p className="text-gray-600 dark:text-gray-400">
-                Welcome back, {student?.name}! Here's your academic overview for Semester {student?.semester}
-              </p>
-            </div>
-            <div className="mt-4 md:mt-0 flex flex-col sm:flex-row gap-3">
-              {leaveBalance && leaveBalance.leave_remaining > 0 ? (
+          {/* Header Section */}
+          <PageHeader
+            title="Student Dashboard"
+            subtitle={`Welcome back, ${student?.name}! Here's your academic overview for Semester ${student?.semester}`}
+            actions={
+              <>
+                {leaveBalance && leaveBalance.leave_remaining > 0 ? (
+                  <Link
+                    href="/apply-leave"
+                    className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 text-center shadow-md hover:shadow-lg"
+                  >
+                    Apply for Leave
+                  </Link>
+                ) : (
+                  <Link
+                    href="/request-leave"
+                    className="bg-orange-600 hover:bg-orange-700 dark:bg-orange-700 dark:hover:bg-orange-600 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 text-center shadow-md hover:shadow-lg"
+                  >
+                    Request Leave
+                  </Link>
+                )}
                 <Link
-                  href="/apply-leave"
-                  className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 text-center shadow-md hover:shadow-lg"
+                  href="/leave-history"
+                  className="bg-gray-600 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 text-center shadow-md hover:shadow-lg"
                 >
-                  Apply for Leave
+                  Leave History
                 </Link>
-              ) : (
-                <Link
-                  href="/request-leave"
-                  className="bg-orange-600 hover:bg-orange-700 dark:bg-orange-700 dark:hover:bg-orange-600 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 text-center shadow-md hover:shadow-lg"
-                >
-                  Request Leave
-                </Link>
-              )}
-              <Link
-                href="/leave-history"
-                className="bg-gray-600 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 text-center shadow-md hover:shadow-lg"
-              >
-                Leave History
-              </Link>
-              <button
-                onClick={() => {
-                  localStorage.removeItem('student_usn')
-                  window.location.href = '/'
-                }}
-                className="bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 text-center shadow-md hover:shadow-lg"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
+              </>
+            }
+          />
 
         {/* Quick Stats */}
         {student && leaveBalance && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center">
-                <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                  <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Profile</p>
-                  <p className="text-lg font-semibold text-gray-900 dark:text-white">{student?.name}</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{student?.usn}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center">
-                <div className="p-3 bg-green-100 dark:bg-green-900 rounded-lg">
-                  <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Leave Balance</p>
-                  <p className="text-lg font-semibold text-gray-900 dark:text-white">{leaveBalance?.leave_remaining} days</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Used: {leaveBalance?.leave_taken}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center">
-                <div className="p-3 bg-purple-100 dark:bg-purple-900 rounded-lg">
-                  <svg className="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Semester</p>
-                  <p className="text-lg font-semibold text-gray-900 dark:text-white">{student?.semester}th</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{student?.department}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center">
-                <div className="p-3 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
-                  <svg className="w-6 h-6 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Status</p>
-                  <p className="text-lg font-semibold text-green-600 dark:text-green-400">Active</p>
-                </div>
-              </div>
-            </div>
+            <StatsCard
+              title="Profile"
+              value={student?.name || ''}
+              subtitle={student?.usn}
+              color="blue"
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              }
+            />
+            <StatsCard
+              title="Leave Balance"
+              value={`${leaveBalance?.leave_remaining} days`}
+              subtitle={`Used: ${leaveBalance?.leave_taken}`}
+              color="green"
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              }
+            />
+            <StatsCard
+              title="Semester"
+              value={`${student?.semester}th`}
+              subtitle={student?.department}
+              color="purple"
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+              }
+            />
+            <StatsCard
+              title="Status"
+              value="Active"
+              color="yellow"
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              }
+            />
           </div>
         )}
 
@@ -433,15 +432,15 @@ export default function StudentDashboard() {
           </div>
 
           {messages.length === 0 ? (
-            <div className="text-center py-8">
-              <svg className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-              <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-white">No messages yet</h3>
-              <p className="mt-1 text-gray-500 dark:text-gray-400">
-                Messages from your HOD will appear here
-              </p>
-            </div>
+            <EmptyState
+              icon={
+                <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              }
+              title="No messages yet"
+              description="Messages from your HOD will appear here"
+            />
           ) : (
             <div className="space-y-4">
               {messages.slice(0, 5).map((message) => (
@@ -550,6 +549,7 @@ export default function StudentDashboard() {
               </ul>
             </div>
           </div>
+        </div>
         </div>
       </div>
 

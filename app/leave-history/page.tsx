@@ -2,8 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { Navigation } from '../../components/Navigation'
+import { LoadingSpinner } from '../../components/LoadingSpinner'
+import { ErrorMessage } from '../../components/ErrorMessage'
+import { EmptyState } from '../../components/EmptyState'
 
-// Define TypeScript interface for leave history
+// Define TypeScript interfaces
 interface LeaveApplication {
   id: number
   student_id: number
@@ -20,8 +24,18 @@ interface LeaveApplication {
   processed_by: string | null
 }
 
+interface LeaveBalance {
+  id: number
+  student_id: number
+  semester: number
+  total_leave_allowed: number
+  leave_taken: number
+  leave_remaining: number
+}
+
 export default function LeaveHistory() {
   const [leaveHistory, setLeaveHistory] = useState<LeaveApplication[]>([])
+  const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<string>('all')
@@ -30,16 +44,41 @@ export default function LeaveHistory() {
   useEffect(() => {
     const fetchLeaveHistory = async () => {
       try {
-        // In a real application, you would get the student ID from authentication
-        const studentId = 1 // Example student ID
+        // Get USN from cookie (set during login)
+        const getCookie = (name: string) => {
+          const value = `; ${document.cookie}`
+          const parts = value.split(`; ${name}=`)
+          if (parts.length === 2) return parts.pop()?.split(';').shift()
+          return null
+        }
         
-        const response = await fetch(`/api/leave-history?studentId=${studentId}`)
-        const result = await response.json()
-        
-        if (result.success) {
-          setLeaveHistory(result.data)
+        const usn = getCookie('student_auth')
+
+        if (!usn) {
+          // Redirect to login page if not authenticated
+          window.location.href = '/login'
+          return
+        }
+
+        // Fetch student data to get the ID and leave balance
+        const studentResponse = await fetch(`/api/student?usn=${usn}`)
+        const studentResult = await studentResponse.json()
+
+        if (studentResult.success) {
+          const studentId = studentResult.data.student.id
+          setLeaveBalance(studentResult.data.leaveBalance)
+          
+          // Fetch leave history
+          const response = await fetch(`/api/leave-history?studentId=${studentId}`)
+          const result = await response.json()
+          
+          if (result.success) {
+            setLeaveHistory(result.data)
+          } else {
+            setError(result.error || 'Failed to fetch leave history')
+          }
         } else {
-          setError(result.error || 'Failed to fetch leave history')
+          setError(studentResult.error || 'Failed to fetch student data')
         }
       } catch (err) {
         setError('Failed to fetch leave history')
@@ -58,31 +97,41 @@ export default function LeaveHistory() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+        <Navigation userType="student" />
+        <LoadingSpinner className="h-64" />
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-          <h2 className="text-xl font-bold text-red-800 mb-2">Error</h2>
-          <p className="text-red-600">{error}</p>
-        </div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+        <Navigation userType="student" />
+        <ErrorMessage 
+          message={error}
+          details={[
+            'Your database is running and accessible',
+            'Your database credentials in the .env file are correct',
+            'You have run the database initialization script: npm run init-db'
+          ]}
+        />
       </div>
     )
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="bg-white rounded-lg shadow-md p-6">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+      <Navigation userType="student" />
+      
+      <div className="py-8 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">Leave History</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Leave History</h1>
           <Link
             href="/dashboard"
-            className="text-blue-600 hover:text-blue-800 font-medium"
+            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium"
           >
             ← Back to Dashboard
           </Link>
@@ -124,25 +173,27 @@ export default function LeaveHistory() {
         </div>
         
         {filteredHistory.length === 0 ? (
-          <div className="text-center py-12">
-            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-            <h3 className="mt-2 text-lg font-medium text-gray-900">No leave applications</h3>
-            <p className="mt-1 text-gray-500">
-              {filter === 'all' 
+          <EmptyState
+            icon={
+              <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            }
+            title="No leave applications"
+            description={
+              filter === 'all' 
                 ? "You haven't submitted any leave applications yet." 
-                : `You don't have any ${filter} leave applications.`}
-            </p>
-            <div className="mt-6">
+                : `You don't have any ${filter} leave applications.`
+            }
+            action={
               <Link 
                 href="/apply-leave" 
                 className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none"
               >
                 Apply for Leave
               </Link>
-            </div>
-          </div>
+            }
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -217,21 +268,25 @@ export default function LeaveHistory() {
           </div>
         )}
         
-        <div className="mt-8 bg-blue-50 rounded-lg p-4">
-          <h3 className="text-lg font-medium text-blue-800 mb-2">Leave Balance Summary</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white p-3 rounded-lg shadow-sm">
-              <p className="text-sm text-gray-600">Total Leave Allowed</p>
-              <p className="text-2xl font-bold text-gray-800">10 days</p>
+        {leaveBalance && (
+          <div className="mt-8 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+            <h3 className="text-lg font-medium text-blue-800 dark:text-blue-200 mb-2">Leave Balance Summary</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Total Leave Allowed</p>
+                <p className="text-2xl font-bold text-gray-800 dark:text-white">{leaveBalance.total_leave_allowed} days</p>
+              </div>
+              <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Leave Taken</p>
+                <p className="text-2xl font-bold text-gray-800 dark:text-white">{leaveBalance.leave_taken} days</p>
+              </div>
+              <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Leave Remaining</p>
+                <p className="text-2xl font-bold text-green-600 dark:text-green-400">{leaveBalance.leave_remaining} days</p>
+              </div>
             </div>
-            <div className="bg-white p-3 rounded-lg shadow-sm">
-              <p className="text-sm text-gray-600">Leave Taken</p>
-              <p className="text-2xl font-bold text-gray-800">3 days</p>
-            </div>
-            <div className="bg-white p-3 rounded-lg shadow-sm">
-              <p className="text-sm text-gray-600">Leave Remaining</p>
-              <p className="text-2xl font-bold text-green-600">7 days</p>
-            </div>
+          </div>
+        )}
           </div>
         </div>
       </div>

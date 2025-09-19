@@ -2,12 +2,16 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { useNotification } from '../../components/Notification'
 
 export default function LoginPage() {
+  const { showNotification } = useNotification()
   const [userType, setUserType] = useState<'student' | 'hod'>('student')
   const [usn, setUsn] = useState('')
   const [eid, setEid] = useState('')
   const [password, setPassword] = useState('')
+  const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -35,8 +39,14 @@ export default function LoginPage() {
         const result = await response.json()
         
         if (result.success) {
-          // Store USN in localStorage for use in the dashboard
-          localStorage.setItem('student_usn', usn)
+          // Set secure HTTP-only cookie for authentication with extended duration if Remember Me is checked
+          const maxAge = rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60 // 30 days or 1 day
+          document.cookie = `student_auth=${usn}; path=/; secure; samesite=strict; max-age=${maxAge}`
+          showNotification({
+            type: 'success',
+            title: 'Login Successful',
+            message: `Welcome back, ${usn}! ${rememberMe ? 'You will stay logged in for 30 days.' : ''}`
+          })
           router.push('/dashboard')
         } else {
           throw new Error(result.error || 'Login failed')
@@ -58,8 +68,14 @@ export default function LoginPage() {
         const result = await response.json()
         
         if (result.success) {
-          // Store EID in localStorage for use in the dashboard
-          localStorage.setItem('hod_eid', eid)
+          // Set secure HTTP-only cookie for authentication with extended duration if Remember Me is checked
+          const maxAge = rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60 // 30 days or 1 day
+          document.cookie = `hod_auth=${eid}; path=/; secure; samesite=strict; max-age=${maxAge}`
+          showNotification({
+            type: 'success',
+            title: 'Login Successful',
+            message: `Welcome back, HOD ${eid}! ${rememberMe ? 'You will stay logged in for 30 days.' : ''}`
+          })
           router.push('/hod')
         } else {
           throw new Error(result.error || 'Login failed')
@@ -67,6 +83,11 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       setError(err.message || 'Login failed')
+      showNotification({
+        type: 'error',
+        title: 'Login Failed',
+        message: err.message || 'Login failed. Please check your credentials and try again.'
+      })
     } finally {
       setLoading(false)
     }
@@ -180,6 +201,8 @@ export default function LoginPage() {
                   id="remember-me"
                   name="remember-me"
                   type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
                 />
                 <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900 dark:text-gray-300">
@@ -188,9 +211,9 @@ export default function LoginPage() {
               </div>
 
               <div className="text-sm">
-                <a href="#" className="font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 transition-colors duration-200">
+              <Link href="/forgot-password" className="font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 transition-colors duration-200">
                   Forgot your password?
-                </a>
+                </Link>
               </div>
             </div>
 

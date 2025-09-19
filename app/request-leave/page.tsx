@@ -3,9 +3,11 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useNotification } from '../../components/Notification'
 
 export default function RequestLeave() {
   const router = useRouter()
+  const { showNotification } = useNotification()
   
   const [formData, setFormData] = useState({
     reason: '',
@@ -129,14 +131,28 @@ export default function RequestLeave() {
         const result = await response.json()
         
         if (result.success) {
-          alert('Special leave request submitted successfully! The HOD will review your request.')
+          showNotification({
+            type: 'success',
+            title: 'Request Submitted',
+            message: 'Special leave request submitted successfully!'
+          })
           router.push('/dashboard')
         } else {
           setSubmitError(result.error || 'Failed to submit special leave request')
+          showNotification({
+            type: 'error',
+            title: 'Submission Failed',
+            message: 'Failed to submit special leave request'
+          })
         }
       } catch (err) {
         console.error('Error submitting special leave request:', err)
         setSubmitError('Failed to submit special leave request. Please try again.')
+        showNotification({
+          type: 'error',
+          title: 'Connection Error',
+          message: 'Failed to submit special leave request. Please check your connection and try again.'
+        })
       } finally {
         setIsSubmitting(false)
       }
