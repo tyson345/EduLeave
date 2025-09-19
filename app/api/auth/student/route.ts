@@ -55,8 +55,24 @@ export async function POST(request: Request) {
     })
   } catch (error: any) {
     console.error('Error during student authentication:', error)
+    
+    // Provide more specific error messages
+    if (error.code === 'ECONNREFUSED') {
+      return NextResponse.json(
+        { error: 'Database connection failed. Please check your database configuration.' },
+        { status: 500 }
+      )
+    }
+    
+    if (error.code === 'ER_ACCESS_DENIED_ERROR') {
+      return NextResponse.json(
+        { error: 'Database access denied. Please check your credentials.' },
+        { status: 500 }
+      )
+    }
+    
     return NextResponse.json(
-      { error: 'Authentication failed' },
+      { error: `Authentication failed: ${error.message}` },
       { status: 500 }
     )
   }
