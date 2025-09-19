@@ -1,14 +1,7 @@
 import { NextResponse } from 'next/server'
-import mysql from 'mysql2/promise'
+import pool from '@/lib/db'
 
-// Database configuration
-const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '3306'),
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'leave_application_system',
-}
+export const dynamic = 'force-dynamic'
 
 // Handle POST request to reject a leave application
 export async function POST(request: Request) {
@@ -22,20 +15,15 @@ export async function POST(request: Request) {
       )
     }
     
-    // Create database connection
-    const connection = await mysql.createConnection(dbConfig)
-    
     // Update leave application status to rejected
-    const [result]: any = await connection.execute(
+    const result = await pool.query(
       `UPDATE leave_applications 
-       SET status = 'rejected', processed_at = NOW(), processed_by = 'HOD', rejection_reason = ?
-       WHERE id = ?`,
+       SET status = 'rejected', processed_at = NOW(), processed_by = 'HOD', rejection_reason = $1
+       WHERE id = $2`,
       [rejectionReason || null, id]
     )
     
-    await connection.end()
-    
-    if (result.affectedRows > 0) {
+    if (result.rowCount && result.rowCount > 0) {
       return NextResponse.json({
         success: true,
         message: 'Leave application rejected successfully'

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { getApprovedLeaveApplications } from '../../../../lib/db'
 
+export const dynamic = 'force-dynamic'
+
 // Handle GET request for approved leave applications
 export async function GET() {
   try {

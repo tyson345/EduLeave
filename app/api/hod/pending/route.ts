@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { getPendingLeaveApplications } from '../../../../lib/db'
 
+export const dynamic = 'force-dynamic'
+
 // Handle GET request for pending leave applications
 export async function GET() {
   try {
