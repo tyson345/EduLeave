@@ -1,18 +1,19 @@
 import { NextResponse } from 'next/server'
-import mysql from 'mysql2/promise'
+import { Pool } from 'pg'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    // Database configuration
+    // Database configuration for PostgreSQL
     const dbConfig = {
       host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '3306'),
-      user: process.env.DB_USER || 'root',
+      port: parseInt(process.env.DB_PORT || '5432'),
+      user: process.env.DB_USER || 'postgres',
       password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_NAME || 'leave_application_system',
+      database: process.env.DB_NAME || 'postgres',
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
     }
 
     console.log('Database config:', {
@@ -24,16 +25,18 @@ export async function GET() {
     })
 
     // Test database connection
-    const connection = await mysql.createConnection(dbConfig)
+    const pool = new Pool(dbConfig)
+    const client = await pool.connect()
     
     // Test query
-    const [rows] = await connection.execute('SELECT 1 as test')
-    await connection.end()
+    const result = await client.query('SELECT 1 as test')
+    client.release()
+    await pool.end()
 
     return NextResponse.json({
       success: true,
       message: 'Database connection successful',
-      data: rows,
+      data: result.rows,
       config: {
         host: dbConfig.host,
         port: dbConfig.port,

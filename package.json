@@ -10,11 +10,13 @@
     "init-db": "node scripts/init-db.js"
   },
   "dependencies": {
+    "@types/pg": "^8.15.5",
     "autoprefixer": "^10.4.21",
     "dotenv": "^17.2.2",
     "formidable": "^3.5.1",
     "mysql2": "^3.14.5",
     "next": "14.2.5",
+    "pg": "^8.16.3",
     "react": "18",
     "react-dom": "18"
   },
