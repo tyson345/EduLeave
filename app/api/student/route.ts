@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getStudentByUSN, getStudentLeaveBalance } from '../../../lib/db'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+
 // Handle GET request for student information
 export async function GET(request: Request) {
   try {
