@@ -10,6 +10,7 @@
     "init-db": "node scripts/init-db.js"
   },
   "dependencies": {
+    "autoprefixer": "^10.4.21",
     "dotenv": "^17.2.2",
     "formidable": "^3.5.1",
     "mysql2": "^3.14.5",
