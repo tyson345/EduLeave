@@ -14,7 +14,10 @@ export async function GET() {
     if (connectionString) {
       dbConfig = {
         connectionString: connectionString,
-        ssl: { rejectUnauthorized: false }
+        ssl: { 
+          rejectUnauthorized: false,
+          checkServerIdentity: () => undefined
+        }
       }
       console.log('Using connection string:', connectionString.substring(0, 50) + '...')
     } else {
@@ -25,7 +28,10 @@ export async function GET() {
         user: process.env.DB_USER || 'postgres',
         password: process.env.DB_PASSWORD || '',
         database: process.env.DB_NAME || 'postgres',
-        ssl: { rejectUnauthorized: false }
+        ssl: { 
+          rejectUnauthorized: false,
+          checkServerIdentity: () => undefined
+        }
       }
       console.log('Using individual config:', {
         host: dbConfig.host,
